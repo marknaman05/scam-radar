@@ -14,7 +14,8 @@ families are too close to call, the verdict is queued for a human. Rulings
 are kept next to the model's answer, so the stats show how often it was
 right and the leaderboard only ranks confirmed scams.
 
-The model is [Jev](https://typesafe.ai) (TypeSafe's System One). It generates
+The model is [Jev](https://typesafe.ai) (TypeSafe's System One), reached
+through OpenRouter as `typesafe/jev-1.13` (about $0.00002 per message). It generates
 no text — it answers typed questions (yes/no, choice, score) about the message
 in one call, with probabilities. That is what makes the gate possible; a
 chat model would just say "this is a scam" with equal confidence every time.
@@ -23,7 +24,7 @@ chat model would just say "this is a scam" with equal confidence every time.
 
 ```
 uv sync                       # Python 3.14
-cp .env.example .env          # put TYPESAFE_API_KEY in it
+cp .env.example .env          # put OPENROUTER_API_KEY in it
 uv run uvicorn radar.app:app --reload
 ```
 

@@ -105,11 +105,19 @@ class Verdict:
         }
 
 
+#: Jev is served by TypeSafe directly and, under the same wire format, by
+#: OpenRouter (model ``typesafe/jev-1.13``, POST /api/v1/systemone).  An
+#: OpenRouter key is enough; a TypeSafe key is used if that is what is set.
+OPENROUTER_BASE = "https://openrouter.ai/api"
+OPENROUTER_MODEL = "typesafe/jev-1.13"
+
+
 def _client() -> TypeSafeClient:
-    key = os.environ.get("TYPESAFE_API_KEY")
-    if not key:
-        raise RuntimeError("TYPESAFE_API_KEY is not set (console.typesafe.ai)")
-    return TypeSafeClient(api_key=key)
+    if key := os.environ.get("OPENROUTER_API_KEY"):
+        return TypeSafeClient(api_key=key, base_url=OPENROUTER_BASE, model=os.environ.get("JEV_MODEL") or OPENROUTER_MODEL)
+    if key := os.environ.get("TYPESAFE_API_KEY"):
+        return TypeSafeClient(api_key=key)
+    raise RuntimeError("set OPENROUTER_API_KEY (model typesafe/jev-1.13) or TYPESAFE_API_KEY")
 
 
 def state_for(text: str, sender: str | None = None) -> dict:
