@@ -54,7 +54,7 @@
 <main>
   <header>
     <div class="wordmark">Scam SMS Radar<small>beta</small></div>
-    <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a></nav>
+    <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a><a href="#how" data-tab="how">How it works</a></nav>
   </header>
 
   <section id="check">
@@ -104,6 +104,50 @@
   <section id="recent" hidden>
     <h1>Recent <em>reports</em></h1>
     <div class="list" id="rcList"></div>
+  </section>
+  <section id="how" hidden>
+    <h1>What happens <em>behind the scenes</em></h1>
+    <p class="lede">No chatbot, no prompt, no generated text. One call to a model that only answers typed questions — and says how sure it is.</p>
+
+    <div class="list">
+      <div class="item">
+        <div class="k">1 · Your message becomes "state"</div>
+        <p class="msg">The text you paste (and the sender, if you give one) is packaged as a small JSON object: <code>{ channel: "SMS received on a phone in India", message: "…", sender: "…" }</code>. Nothing is rewritten or summarised; the model sees exactly what you saw.</p>
+      </div>
+      <div class="item">
+        <div class="k">2 · Four typed questions, one request</div>
+        <p class="msg">The state goes to <b>Jev</b>, TypeSafe's "System One" model, reached through OpenRouter. Jev doesn't write; it answers questions of three fixed kinds, all in parallel, with calibrated probabilities:</p>
+        <ul class="msg" style="margin:6px 0 0 18px">
+          <li><b>Is it a scam?</b> — a yes/no question. Comes back as a probability, e.g. 0.86.</li>
+          <li><b>Which family?</b> — a <i>choice</i> over ten labels (KYC, electricity, courier, lottery, fake job, bank/UPI, loan, impersonation, other scam, genuine), each described in a sentence. Comes back as a probability for every label.</li>
+          <li><b>How dangerous?</b> — a <i>score</i> 0–4 against a written rubric, from "harmless" to "impersonates authority with threats to extract money". Comes back as a probability per level.</li>
+          <li><b>How creative?</b> — a <i>score</i> 0–4, from "the template everyone has seen" to "would surprise a seasoned skeptic". Feeds the leaderboard.</li>
+        </ul>
+        <p class="msg">The questions and rubrics are plain text in the code — that's the whole "prompt". The call takes about a quarter of a second and costs around ₹0.002.</p>
+      </div>
+      <div class="item">
+        <div class="k">3 · The confidence gate</div>
+        <p class="msg">Because the answers are probabilities, the verdict can know when it's guessing. It's marked <b>needs a human look</b> when any of these hold:</p>
+        <ul class="msg" style="margin:6px 0 0 18px">
+          <li>the scam probability is within 0.25 of even (between 25% and 75%);</li>
+          <li>the top family beats the runner-up by less than 0.25;</li>
+          <li>the two questions disagree — "not a scam" overall, yet a scam family scores over 50%.</li>
+        </ul>
+        <p class="msg">Everything else is shown as a straight verdict. The thresholds are two numbers in the code; on a test set the gate flagged a genuine OTP (39% — the classic phishing shape, even when real) and a plausible-looking challan notice (29%), and nothing else.</p>
+      </div>
+      <div class="item">
+        <div class="k">4 · A human rules; both answers are kept</div>
+        <p class="msg">Flagged messages wait in the Review tab. A reviewer marks them scam or genuine and can correct the family. The ruling is stored <i>next to</i> the model's answer, never over it — so the stats can say how often the model agreed with people, and the review set slowly becomes a labelled dataset.</p>
+      </div>
+      <div class="item">
+        <div class="k">5 · The leaderboard</div>
+        <p class="msg">Only confirmed scams qualify: ruled a scam by a human, or called a scam by the model without a review flag. Ranked by the creativity score, then upvotes, then recency. Messages are fingerprinted with numbers and links stripped, so "seen 3× before" recognises a campaign even when every copy has a different phone number.</p>
+      </div>
+      <div class="item">
+        <div class="k">What's stored, and what isn't</div>
+        <p class="msg">The message text, the sender if given, the timestamp, the model's full answer, any human ruling and the vote count — in a small SQLite database. No account, no cookies beyond the reviewer's own token, no phone number of <i>yours</i>. The numbers inside scam messages are the evidence and are kept. Code: <a href="https://github.com/marknaman05/scam-radar" style="color:inherit">github.com/marknaman05/scam-radar</a>.</p>
+      </div>
+    </div>
   </section>
 </main>
 <div id="toast" hidden></div>
