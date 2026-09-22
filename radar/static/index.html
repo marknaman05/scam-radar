@@ -47,19 +47,21 @@
   .stats div { background:var(--paper); padding:14px } .stats .n { font-family:var(--serif); font-size:28px; line-height:1 }
   section[hidden] { display:none }
   #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:999px; font-size:14px } #toast[hidden] { display:none }
+  .jev { display:inline-block; vertical-align:middle; margin-left:12px; padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:var(--paper); font:12px var(--sans); letter-spacing:0; color:var(--muted); text-decoration:none } .jev b { color:var(--ink); font-weight:600 } .jev:hover { border-color:var(--ink); color:var(--ink) }
+  footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 20px } footer a { color:var(--ink); text-decoration:none; border-bottom:1px solid var(--border) }
   @media (max-width:640px) { header { flex-direction:column; gap:10px } nav a { margin:0 14px 0 0 } }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <div class="wordmark">Scam SMS Radar<small>beta</small></div>
+    <div class="wordmark">Scam SMS Radar<small>beta</small> <a class="jev" href="https://typesafe.ai" target="_blank" rel="noopener" title="Jev: a decision model that answers typed questions with calibrated probabilities">built with <b>Jev</b></a></div>
     <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a><a href="#how" data-tab="how">How it works</a></nav>
   </header>
 
   <section id="check">
     <h1>Paste the message.<br><em>Get a straight answer.</em></h1>
-    <p class="lede">"Your electricity will be disconnected tonight." "KYC pending, click here." Paste it as-is. You get the scam type, how dangerous it is, and — unusually — how sure the model is. When it isn't sure, a human looks.</p>
+    <p class="lede">"Your electricity will be disconnected tonight." "KYC pending, click here." Paste it as-is. You get the scam type, how dangerous it is, and — unusually — how sure the model is. When it isn't sure, a human looks. Powered by <a href="#how" style="color:inherit">Jev</a>, a model that answers questions instead of writing.</p>
     <form class="card" id="form">
       <textarea id="text" placeholder="Dear customer, your electricity power will be disconnected tonight at 9:30 pm from electricity office because your previous month bill was not updated. Please immediately contact our electricity officer 98xxxxxxxx." required minlength="8" maxlength="2000"></textarea>
       <div class="row">
@@ -149,6 +151,12 @@
       </div>
     </div>
   </section>
+  <footer>
+    <span>Built with <a href="https://typesafe.ai" target="_blank" rel="noopener">Jev</a>, TypeSafe's System One decision model — four typed questions, calibrated probabilities, no generated text.</span>
+    <span>Served via <a href="https://openrouter.ai/typesafe/jev-1.13" target="_blank" rel="noopener">OpenRouter</a></span>
+    <span><a href="https://github.com/marknaman05/scam-radar" target="_blank" rel="noopener">Source</a></span>
+    <span>Made by <a href="https://mynameisnaman.in" target="_blank" rel="noopener">Naman Markhedkar</a></span>
+  </footer>
 </main>
 <div id="toast" hidden></div>
 
