@@ -49,6 +49,15 @@
   #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:999px; font-size:14px } #toast[hidden] { display:none }
   .jev { display:inline-block; vertical-align:middle; margin-left:12px; padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:var(--paper); font:12px var(--sans); letter-spacing:0; color:var(--muted); text-decoration:none } .jev b { color:var(--ink); font-weight:600 } .jev:hover { border-color:var(--ink); color:var(--ink) }
   footer { margin-top:56px; padding-top:20px; border-top:1px solid var(--border); font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; gap:8px 20px } footer a { color:var(--ink); text-decoration:none; border-bottom:1px solid var(--border) }
+  .pg-wrap { display:grid; gap:18px; grid-template-columns:1fr; margin-top:18px } @media (min-width:900px) { .pg-wrap { grid-template-columns:1fr 1fr } }
+  .pg-panel { background:var(--paper); border:1px solid var(--border); border-radius:14px; overflow:hidden }
+  .pg-panel .pg-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); background:var(--tint) }
+  .pg-title { font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:8px }
+  .pg-dot { width:7px; height:7px; border-radius:50%; display:inline-block } .pg-dot.req { background:var(--faint) } .pg-dot.res { background:var(--ok) }
+  .pg-lock { font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--faint); border:1px solid var(--border); border-radius:999px; padding:2px 8px }
+  .pg-panel textarea { display:block; width:100%; margin:0; border:0; background:var(--paper); color:var(--body); font:12.5px/1.6 var(--mono); padding:16px; white-space:pre; overflow:auto; resize:none; cursor:not-allowed; min-height:420px }
+  .pg-panel textarea:focus { outline:none }
+  .pg-badge { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--muted); background:var(--tint); border:1px solid var(--border); border-radius:999px; padding:4px 10px }
   @media (max-width:640px) { header { flex-direction:column; gap:10px } nav a { margin:0 14px 0 0 } }
 </style>
 </head>
@@ -56,7 +65,7 @@
 <main>
   <header>
     <div class="wordmark">Scam SMS Radar<small>beta</small> <a class="jev" href="https://typesafe.ai" target="_blank" rel="noopener" title="Jev: a decision model that answers typed questions with calibrated probabilities">built with <b>Jev</b></a></div>
-    <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a><a href="#how" data-tab="how">How it works</a></nav>
+    <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a><a href="#how" data-tab="how">How it works</a><a href="#playground" data-tab="playground">Playground</a></nav>
   </header>
 
   <section id="check">
@@ -150,6 +159,166 @@
         <p class="msg">The message text, the sender if given, the timestamp, the model's full answer, any human ruling and the vote count — in a small SQLite database. No account, no cookies beyond the reviewer's own token, no phone number of <i>yours</i>. The numbers inside scam messages are the evidence and are kept. Code: <a href="https://github.com/marknaman05/scam-radar" style="color:inherit">github.com/marknaman05/scam-radar</a>.</p>
       </div>
     </div>
+  </section>
+
+  <section id="playground" hidden>
+    <h1>The exact call, <em>frozen</em></h1>
+    <p class="lede">Not a live demo. This is the real request the "Check this message" button sends, and the real response Jev returned for it, fixed in place so you can read the shape without anything changing underneath you.</p>
+    <div class="pg-badge"><span class="pg-dot req"></span> static example &middot; no API call is made on this page &middot; nothing here is editable</div>
+
+    <div class="pg-wrap">
+      <div class="pg-panel">
+        <div class="pg-head"><span class="pg-title"><span class="pg-dot req"></span>Request &middot; POST /systemone</span><span class="pg-lock">&#128274; read-only</span></div>
+        <textarea id="pgReq" readonly spellcheck="false" aria-label="Frozen request"></textarea>
+      </div>
+      <div class="pg-panel">
+        <div class="pg-head"><span class="pg-title"><span class="pg-dot res"></span>Response &middot; 200 OK</span><span class="pg-lock">&#128274; read-only</span></div>
+        <textarea id="pgRes" readonly spellcheck="false" aria-label="Frozen response"></textarea>
+      </div>
+    </div>
+    <script type="application/json" id="pgReqData">{
+  "model": "typesafe/jev-1.13",
+  "state": {
+    "channel": "SMS received on a phone in India",
+    "message": "Dear Customer, Your Electricity power will be disconnected Tonight at 9:30 pm from electricity office. Because your previous month bill was not update. Please immediately contact with our electricity officer 8235012345 Thank you",
+    "sender": "+91 82350 12345"
+  },
+  "questions": {
+    "is_scam": {
+      "type": "noul",
+      "instructions": "Is this SMS a scam, fraud attempt or phishing message?",
+      "criteria": {
+        "true": "It tries to deceive the recipient into paying, sharing credentials/OTP, clicking a malicious link, or contacting a fraudster.",
+        "false": "It is genuine, harmless, or ordinary marketing that asks for nothing sensitive."
+      }
+    },
+    "kind": {
+      "type": "choice",
+      "instructions": "Which family does this message belong to?",
+      "criteria": {
+        "kyc": "KYC / account-suspension bait: 'update your KYC', 'PAN not linked', 'account will be blocked', with a link or number to call.",
+        "electricity": "Utility disconnection threat: 'your electricity/gas/water will be cut tonight', 'bill unpaid, contact officer', usually with a personal mobile number.",
+        "courier": "Parcel / customs hold: 'your package could not be delivered', 'customs duty pending', 'FedEx/India Post', pay a small fee via a link.",
+        "lottery": "Prize, lottery, lucky draw, cashback or gift you never entered; claim by paying a fee or sharing details.",
+        "job": "Fake job or task offer: part-time work, 'like YouTube videos and earn', 'earn ₹5000 a day', WhatsApp/Telegram contact, registration fee.",
+        "bank": "Bank / card / UPI fraud: 'transaction blocked', 'refund pending', OTP requests, fake bank links, 'your card is debited'.",
+        "loan": "Instant-loan or investment lure: pre-approved loan, guaranteed returns, crypto/stock tips, app download links.",
+        "impersonation": "Someone pretending to be police, a court, customs, a boss, a relative in trouble, or a government scheme (PM Kisan, Aadhaar).",
+        "other_scam": "A scam that fits none of the families above.",
+        "not_scam": "A legitimate message: a real OTP, a genuine delivery update, a bank alert without a link, personal chat, marketing that asks for nothing."
+      }
+    },
+    "danger": {
+      "type": "score",
+      "instructions": "How much harm would following this message do to a typical recipient?",
+      "criteria": [
+        "harmless: nothing is asked of the reader",
+        "nuisance: spam or marketing; ignoring it costs nothing",
+        "risky: leads to a link, app or number that could phish details",
+        "dangerous: asks for OTP, PIN, card or a payment; money loss likely if followed",
+        "severe: impersonates authority with urgency and threat (arrest, disconnection, legal action) to extract money or access"
+      ]
+    },
+    "creativity": {
+      "type": "score",
+      "instructions": "As a scam, how creative or novel is this message?",
+      "criteria": [
+        "template: the standard wording everyone has seen",
+        "minor twist on a known template",
+        "some craft: a plausible detail, a new hook, decent grammar",
+        "inventive: a fresh premise or a clever pressure tactic",
+        "genuinely creative: a story or angle that would surprise a seasoned skeptic"
+      ]
+    }
+  }
+}</script>
+<script type="application/json" id="pgResData">{
+  "model": "typesafe/jev-1.13-20260917",
+  "answers": {
+    "is_scam": {
+      "type": "noul",
+      "noul": 0.86
+    },
+    "kind": {
+      "type": "choice",
+      "choice": "electricity",
+      "confidence": 1.0,
+      "probabilities": {
+        "kyc": 0.0,
+        "electricity": 1.0,
+        "courier": 0.0,
+        "lottery": 0.0,
+        "job": 0.0,
+        "bank": 0.0,
+        "loan": 0.0,
+        "impersonation": 0.0,
+        "other_scam": 0.0,
+        "not_scam": 0.0
+      }
+    },
+    "danger": {
+      "type": "score",
+      "score": 3.72,
+      "confidence": 0.68,
+      "legend": {
+        "0": "harmless: nothing is asked of the reader",
+        "1": "nuisance: spam or marketing; ignoring it costs nothing",
+        "2": "risky: leads to a link, app or number that could phish details",
+        "3": "dangerous: asks for OTP, PIN, card or a payment; money loss likely if followed",
+        "4": "severe: impersonates authority with urgency and threat (arrest, disconnection, legal action) to extract money or access"
+      },
+      "probabilities": {
+        "0": 0.0,
+        "1": 0.01,
+        "2": 0.03,
+        "3": 0.2,
+        "4": 0.76
+      }
+    },
+    "creativity": {
+      "type": "score",
+      "score": 0.18,
+      "confidence": 0.79,
+      "legend": {
+        "0": "template: the standard wording everyone has seen",
+        "1": "minor twist on a known template",
+        "2": "some craft: a plausible detail, a new hook, decent grammar",
+        "3": "inventive: a fresh premise or a clever pressure tactic",
+        "4": "genuinely creative: a story or angle that would surprise a seasoned skeptic"
+      },
+      "probabilities": {
+        "0": 0.83,
+        "1": 0.16,
+        "2": 0.01,
+        "3": 0.0,
+        "4": 0.0
+      }
+    }
+  },
+  "usage": {
+    "input_tokens": 612,
+    "output_tokens": 98,
+    "cost": 2.57e-05
+  },
+  "provider": "TypeSafe"
+}
+
+// → app verdict
+{
+  "_note": "what the app derives from the response above (radar/classify.py: verdict_from)",
+  "is_scam": true,
+  "p_scam": 0.86,
+  "kind": "electricity",
+  "p_kind": 1.0,
+  "kind_confidence": 1.0,
+  "kind_runner_up": "kyc",
+  "p_runner_up": 0.0,
+  "danger": 4,
+  "creativity": 0,
+  "needs_review": false,
+  "review_reason": ""
+}</script>
+    <p class="fine" style="margin-top:14px">The message shown was actually checked while building this page; the numbers are Jev's real answer, not a mock-up. Jev is a live model, so the same text run again can differ slightly &mdash; which is exactly why this copy is frozen.</p>
   </section>
   <footer>
     <span>Built with <a href="https://typesafe.ai" target="_blank" rel="noopener">Jev</a>, TypeSafe's System One decision model — four typed questions, calibrated probabilities, no generated text.</span>
@@ -259,6 +428,16 @@ async function loadReview() {
       <button class="btn ghost" data-rule="${x.id}" data-scam="0">Genuine</button>
     </div></div>`).join("") : `<div class="item">Queue is empty — the model was sure about everything so far.</div>`;
 }
+// ── playground: frozen request/response, filled once, never editable ──
+(function () {
+  const req = document.getElementById("pgReqData"), res = document.getElementById("pgResData");
+  if (!req || !res) return;
+  const ta1 = document.getElementById("pgReq"), ta2 = document.getElementById("pgRes");
+  ta1.value = req.textContent; ta2.value = res.textContent;
+  // Belt and braces: readonly stops typing; these stop paste/drop/cut too.
+  for (const ta of [ta1, ta2]) for (const ev of ["paste", "drop", "cut", "beforeinput"]) ta.addEventListener(ev, e => e.preventDefault());
+})();
+
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-rule]"); if (!b) return;
   const id = b.dataset.rule, kind = document.querySelector(`select[data-kind="${id}"]`).value;
