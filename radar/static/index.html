@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scam SMS Radar</title>
+<meta name="description" content="Paste a suspicious SMS. Get the scam type, a danger score, and an honest confidence — uncertain ones go to a human.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root { --paper:#fff; --tint:#fafafa; --border:#e5e5e5; --faint:#a3a3a3; --muted:#737373; --body:#404040; --ink:#171717;
+          --ok:#10b981; --warn:#f59e0b; --bad:#e11d48; --sans:"Geist",ui-sans-serif,system-ui,sans-serif; --serif:"Instrument Serif",ui-serif,Georgia,serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace; }
+  * { box-sizing:border-box } body { margin:0; padding:0 20px 64px; background:var(--tint); color:var(--ink); font:15px/1.6 var(--sans); letter-spacing:-.01em; -webkit-font-smoothing:antialiased }
+  main { max-width:960px; margin:0 auto }
+  header { display:flex; align-items:baseline; justify-content:space-between; padding:26px 0 30px }
+  .wordmark { font-family:var(--serif); font-size:26px } .wordmark small { font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin-left:10px }
+  nav a { font-size:14px; color:var(--muted); text-decoration:none; margin-left:18px } nav a:hover, nav a.on { color:var(--ink) }
+  h1 { font-family:var(--serif); font-weight:400; font-size:clamp(34px,6vw,54px); line-height:1.04; letter-spacing:-.02em; margin:0 0 12px } h1 em { font-style:italic; color:var(--muted) }
+  .lede { max-width:600px; color:var(--body); margin:0 0 28px; font-size:16px }
+  .card { background:var(--paper); border:1px solid var(--border); border-radius:16px; padding:22px }
+  textarea { width:100%; min-height:140px; resize:vertical; border:1px solid var(--border); border-radius:10px; padding:14px; font:15px/1.5 var(--sans); background:var(--paper) } textarea:focus, input:focus { outline:none; border-color:var(--ink) }
+  .row { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap } .row input { flex:1; min-width:180px; height:44px; border:1px solid var(--border); border-radius:10px; padding:0 12px; font:14px var(--mono) }
+  .btn { height:44px; padding:0 22px; border:0; border-radius:8px; background:var(--ink); color:#fff; font:500 15px var(--sans); cursor:pointer } .btn:disabled { opacity:.4 } .btn.ghost { background:none; border:1px solid var(--border); color:var(--ink) }
+  .fine { font-size:12px; color:var(--muted); margin-top:10px }
+  /* verdict */
+  #verdict { margin-top:18px; display:none } #verdict.on { display:block }
+  .v-head { display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; padding-bottom:16px; border-bottom:1px solid var(--border); margin-bottom:16px }
+  .badge { font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase; padding:6px 12px; border-radius:999px; border:1px solid }
+  .badge.scam { color:var(--bad); border-color:#fecdd3; background:#fff1f2 } .badge.ok { color:#047857; border-color:#a7f3d0; background:#ecfdf5 } .badge.review { color:#b45309; border-color:#fde68a; background:#fffbeb }
+  .big { font-family:var(--serif); font-size:34px; line-height:1 }
+  .grid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)) }
+  .k { font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-bottom:6px }
+  .bar { height:8px; background:#f0f0f0; border-radius:999px; overflow:hidden; margin-top:6px } .bar i { display:block; height:100%; border-radius:999px; background:var(--ink) }
+  .kinds div { display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:var(--body) } .kinds div b { font-family:var(--mono); font-weight:500 }
+  .danger { display:flex; gap:4px } .danger i { flex:1; height:10px; border-radius:3px; background:#f0f0f0 } .danger i.on { background:var(--bad) } .danger i.on.low { background:var(--warn) } .danger i.on.none { background:var(--ok) }
+  .why { margin-top:14px; padding:12px 14px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:14px }
+  .seen { font-family:var(--mono); font-size:12px; color:var(--muted) }
+  /* lists */
+  .list { display:flex; flex-direction:column; gap:12px; margin-top:16px }
+  .item { background:var(--paper); border:1px solid var(--border); border-radius:14px; padding:16px 18px }
+  .item .msg { white-space:pre-wrap; word-wrap:break-word; color:var(--body); font-size:14px; margin:8px 0 }
+  .item .meta { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; font-family:var(--mono); font-size:11px; color:var(--muted) }
+  .rank { font-family:var(--serif); font-size:28px; color:var(--faint); margin-right:8px }
+  .vote { background:none; border:1px solid var(--border); border-radius:999px; padding:4px 12px; font:13px var(--sans); cursor:pointer } .vote:hover { border-color:var(--ink) }
+  select { height:36px; border:1px solid var(--border); border-radius:8px; padding:0 8px; font:14px var(--sans); background:var(--paper) }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-top:24px }
+  .stats div { background:var(--paper); padding:14px } .stats .n { font-family:var(--serif); font-size:28px; line-height:1 }
+  section[hidden] { display:none }
+  #toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 16px; border-radius:999px; font-size:14px } #toast[hidden] { display:none }
+  @media (max-width:640px) { header { flex-direction:column; gap:10px } nav a { margin:0 14px 0 0 } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="wordmark">Scam SMS Radar<small>beta</small></div>
+    <nav><a href="#check" class="on" data-tab="check">Check</a><a href="#leaderboard" data-tab="leaderboard">Leaderboard</a><a href="#review" data-tab="review">Review</a><a href="#recent" data-tab="recent">Recent</a></nav>
+  </header>
+
+  <section id="check">
+    <h1>Paste the message.<br><em>Get a straight answer.</em></h1>
+    <p class="lede">"Your electricity will be disconnected tonight." "KYC pending, click here." Paste it as-is. You get the scam type, how dangerous it is, and — unusually — how sure the model is. When it isn't sure, a human looks.</p>
+    <form class="card" id="form">
+      <textarea id="text" placeholder="Dear customer, your electricity power will be disconnected tonight at 9:30 pm from electricity office because your previous month bill was not updated. Please immediately contact our electricity officer 98xxxxxxxx." required minlength="8" maxlength="2000"></textarea>
+      <div class="row">
+        <input id="sender" placeholder="Sender (optional): +91 98xxx xxxxx or VM-KOTAKB" maxlength="40">
+        <button class="btn" id="go">Check this message</button>
+      </div>
+      <p class="fine">Don't paste OTPs you actually need. Messages are stored to build the leaderboard and the review set; phone numbers in them are fine, that's the evidence.</p>
+    </form>
+
+    <div id="verdict" class="card">
+      <div class="v-head">
+        <span id="vBadge" class="badge"></span>
+        <span class="big" id="vKind"></span>
+        <span id="vReview" class="badge review" hidden>needs a human look</span>
+        <span class="seen" id="vSeen"></span>
+      </div>
+      <div class="grid">
+        <div><div class="k">Scam probability</div><div class="big" id="vP"></div><div class="bar"><i id="vPBar"></i></div></div>
+        <div><div class="k">Danger</div><div class="big" id="vDanger"></div><div class="danger" id="vDangerBar"></div><div class="fine" id="vDangerText"></div></div>
+        <div><div class="k">Family (with probabilities)</div><div class="kinds" id="vKinds"></div></div>
+        <div><div class="k">Creativity</div><div class="big" id="vCre"></div><div class="fine" id="vCreText"></div><button class="vote" id="vVote" style="margin-top:8px">▲ upvote for the leaderboard</button></div>
+      </div>
+      <div class="why" id="vWhy" hidden></div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section id="leaderboard" hidden>
+    <h1>Most creative <em>scams</em></h1>
+    <p class="lede">Confirmed scams, ranked by how inventive the con is (model's creativity score, then your upvotes). A hall of fame nobody wanted.</p>
+    <div class="list" id="lbList"></div>
+  </section>
+
+  <section id="review" hidden>
+    <h1>Needs a <em>human</em></h1>
+    <p class="lede">Verdicts the model wasn't sure about: scam probability near even, or two families too close to call. Your ruling becomes the truth the stats and leaderboard use.</p>
+    <div class="row" id="tokenRow" hidden><input id="token" placeholder="review token" type="password"><button class="btn ghost" id="tokenSave">Save</button></div>
+    <div class="list" id="rvList"></div>
+  </section>
+
+  <section id="recent" hidden>
+    <h1>Recent <em>reports</em></h1>
+    <div class="list" id="rcList"></div>
+  </section>
+</main>
+<div id="toast" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const KIND_LABEL = { kyc:"KYC / account block", electricity:"Electricity disconnection", courier:"Courier / customs", lottery:"Lottery / prize", job:"Fake job / task", bank:"Bank / UPI fraud", loan:"Loan / investment", impersonation:"Impersonation", other_scam:"Other scam", not_scam:"Not a scam" };
+const DANGER = ["harmless","nuisance","risky","dangerous","severe"], CRE = ["template","minor twist","some craft","inventive","genuinely creative"];
+const pct = p => Math.round(p * 100) + "%";
+const esc = s => String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
+let KINDS = Object.keys(KIND_LABEL), REVIEW_PROTECTED = false;
+
+function toast(t) { const el = $("toast"); el.textContent = t; el.hidden = false; clearTimeout(el.t); el.t = setTimeout(() => el.hidden = true, 5000); }
+function tab(name) {
+  for (const s of document.querySelectorAll("main > section")) s.hidden = s.id !== name;
+  for (const a of document.querySelectorAll("nav a")) a.classList.toggle("on", a.dataset.tab === name);
+  if (name === "leaderboard") loadList("/leaderboard", "lbList", true);
+  if (name === "review") loadReview();
+  if (name === "recent") loadList("/recent", "rcList", false);
+}
+window.addEventListener("hashchange", () => tab(location.hash.slice(1) || "check"));
+tab(location.hash.slice(1) || "check");
+
+// Android/desktop share target: ?text=... prefills the box.
+const shared = new URLSearchParams(location.search).get("text");
+if (shared) { $("text").value = shared; tab("check"); }
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("go").disabled = true; $("go").textContent = "Asking the model…";
+  try {
+    const r = await fetch("/check", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ text: $("text").value, sender: $("sender").value || null }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.detail || r.statusText);
+    showVerdict(body); loadStats();
+  } catch (err) { toast(err.message); }
+  $("go").disabled = false; $("go").textContent = "Check this message";
+});
+
+function showVerdict(rep) {
+  const v = rep.verdict;
+  $("verdict").classList.add("on"); $("verdict").dataset.id = rep.id;
+  $("vBadge").className = "badge " + (v.is_scam ? "scam" : "ok"); $("vBadge").textContent = v.is_scam ? "scam" : "looks genuine";
+  $("vKind").textContent = KIND_LABEL[v.kind] || v.kind;
+  $("vReview").hidden = !v.needs_review;
+  $("vSeen").textContent = rep.seen_before ? `seen ${rep.seen_before}× before` : "first time we see this one";
+  $("vP").textContent = pct(v.p_scam); $("vPBar").style.width = pct(v.p_scam); $("vPBar").style.background = v.p_scam >= 0.5 ? "var(--bad)" : "var(--ok)";
+  $("vDanger").textContent = `${v.danger} / 4`; $("vDangerText").textContent = DANGER[v.danger];
+  $("vDangerBar").innerHTML = [0,1,2,3,4].map(i => `<i class="${i <= v.danger ? "on" : ""} ${v.danger === 0 ? "none" : v.danger <= 1 ? "low" : ""}"></i>`).join("");
+  const ranked = Object.entries(v.kinds).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  $("vKinds").innerHTML = ranked.map(([k, p]) => `<div><span>${KIND_LABEL[k] || k}</span><b>${pct(p)}</b></div>`).join("");
+  $("vCre").textContent = `${v.creativity} / 4`; $("vCreText").textContent = CRE[v.creativity];
+  $("vWhy").hidden = !v.needs_review; $("vWhy").textContent = v.needs_review ? "Queued for review: " + v.review_reason + "." : "";
+  $("vVote").disabled = false; $("vVote").textContent = "▲ upvote for the leaderboard";
+  $("verdict").scrollIntoView({ behavior:"smooth", block:"nearest" });
+}
+$("vVote").addEventListener("click", async () => { const id = $("verdict").dataset.id; await fetch(`/reports/${id}/vote`, { method:"POST" }); $("vVote").disabled = true; $("vVote").textContent = "▲ voted"; });
+
+async function loadStats() {
+  const s = await fetch("/stats").then(r => r.json());
+  KINDS = s.kinds; REVIEW_PROTECTED = s.review_protected;
+  $("stats").innerHTML = [["messages", s.total], ["scams", s.scams], ["awaiting review", s.awaiting_review], ["reviewed", s.reviewed],
+    ["model agreed", s.reviewed ? Math.round(100 * s.model_agreed_with_human / s.reviewed) + "%" : "—"]]
+    .map(([k, n]) => `<div><div class="k">${k}</div><div class="n">${n}</div></div>`).join("");
+}
+loadStats();
+
+function itemHTML(r, rank) {
+  const v = r.verdict, kind = KIND_LABEL[r.final_kind] || r.final_kind;
+  return `<div class="item" data-id="${r.id}">
+    <div class="meta">${rank ? `<span class="rank">#${rank}</span>` : ""}<span class="badge ${r.final_is_scam ? "scam" : "ok"}">${r.final_is_scam ? "scam" : "genuine"}</span>
+      <span>${esc(kind)}</span><span>danger ${r.danger}/4</span><span>creativity ${r.creativity}/4</span><span>p ${pct(r.p_scam)}</span>
+      ${r.reviewed ? "<span>✓ human-ruled</span>" : r.needs_review ? "<span>awaiting review</span>" : ""}${r.sender ? `<span>from ${esc(r.sender)}</span>` : ""}<span>${r.received.slice(0, 10)}</span></div>
+    <div class="msg">${esc(r.text)}</div>
+    <div class="meta"><button class="vote" data-vote="${r.id}">▲ ${r.votes}</button></div></div>`;
+}
+async function loadList(path, el, ranked) {
+  const rows = await fetch(path).then(r => r.json());
+  $(el).innerHTML = rows.length ? rows.map((r, i) => itemHTML(r, ranked ? i + 1 : 0)).join("") : `<div class="item">Nothing here yet.</div>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-vote]"); if (!b) return;
+  const r = await fetch(`/reports/${b.dataset.vote}/vote`, { method:"POST" }).then(r => r.json());
+  b.textContent = `▲ ${r.votes}`;
+});
+
+// ── review ──
+const authHeaders = () => { const t = localStorage.getItem("radar-token"); return t ? { Authorization: "Bearer " + t } : {}; };
+$("tokenSave").addEventListener("click", () => { localStorage.setItem("radar-token", $("token").value); loadReview(); });
+async function loadReview() {
+  $("tokenRow").hidden = !REVIEW_PROTECTED;
+  const r = await fetch("/review", { headers: authHeaders() });
+  if (r.status === 401) { $("tokenRow").hidden = false; $("rvList").innerHTML = `<div class="item">Enter the review token to see the queue.</div>`; return; }
+  const rows = await r.json();
+  $("rvList").innerHTML = rows.length ? rows.map(x => `${itemHTML(x, 0).slice(0, -6)}
+    <div class="why">${esc(x.review_reason)}</div>
+    <div class="row" style="align-items:center">
+      <select data-kind="${x.id}">${KINDS.map(k => `<option value="${k}" ${k === x.kind ? "selected" : ""}>${KIND_LABEL[k] || k}</option>`).join("")}</select>
+      <button class="btn" data-rule="${x.id}" data-scam="1">Scam</button>
+      <button class="btn ghost" data-rule="${x.id}" data-scam="0">Genuine</button>
+    </div></div>`).join("") : `<div class="item">Queue is empty — the model was sure about everything so far.</div>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-rule]"); if (!b) return;
+  const id = b.dataset.rule, kind = document.querySelector(`select[data-kind="${id}"]`).value;
+  const r = await fetch(`/reports/${id}/rule`, { method:"POST", headers:{ "Content-Type":"application/json", ...authHeaders() }, body: JSON.stringify({ is_scam: b.dataset.scam === "1", kind }) });
+  if (!r.ok) { toast((await r.json().catch(() => ({}))).detail || "could not save"); return; }
+  b.closest(".item").remove(); toast("Ruling saved."); loadStats();
+});
+</script>
+</body>
+</html>
