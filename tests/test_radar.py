@@ -12,13 +12,19 @@ from radar import classify as clf
 from radar.store import Store, fingerprint
 
 
+def confidence(probs):
+    """TypeSafe's statistic: (n * p_max - 1) / (n - 1); 1.0 when all on one option."""
+    n = len(probs)
+    return 1.0 if n < 2 else (n * max(probs.values()) - 1) / (n - 1)
+
+
 def answers(p_scam, kinds, danger, creativity=1.0):
-    """Shape the SDK returns: objects with .noul / .probabilities / .score."""
+    """Shape the SDK returns: .noul / .probabilities / .score / .confidence."""
     return {
         "is_scam": SimpleNamespace(noul=p_scam),
-        "kind": SimpleNamespace(choice=max(kinds, key=kinds.get), probabilities=kinds),
-        "danger": SimpleNamespace(score=float(max(danger, key=danger.get)), probabilities=danger),
-        "creativity": SimpleNamespace(score=creativity, probabilities={}),
+        "kind": SimpleNamespace(choice=max(kinds, key=kinds.get), probabilities=kinds, confidence=confidence(kinds)),
+        "danger": SimpleNamespace(score=float(max(danger, key=danger.get)), probabilities=danger, confidence=confidence(danger)),
+        "creativity": SimpleNamespace(score=creativity, probabilities={}, confidence=1.0),
     }
 
 
@@ -32,9 +38,15 @@ class TestGate:
         v = clf.verdict_from(answers(0.55, {"bank": 0.8, "kyc": 0.1}, {2: 1.0}))
         assert v.needs_review and "close to even" in v.review_reason
 
-    def test_close_families_are_gated(self):
-        v = clf.verdict_from(answers(0.95, {"kyc": 0.42, "bank": 0.40, "courier": 0.1}, {3: 1.0}))
-        assert v.needs_review and "barely beats" in v.review_reason and v.kind == "kyc"
+    def test_low_family_confidence_is_gated(self):
+        # three-way spread: confidence (3*0.42-1)/2 = 0.13, well under 0.5
+        v = clf.verdict_from(answers(0.95, {"kyc": 0.42, "bank": 0.40, "courier": 0.18}, {3: 1.0}))
+        assert v.needs_review and "family unclear" in v.review_reason and v.kind == "kyc"
+        assert v.kind_confidence == pytest.approx(0.13, abs=0.01)
+
+    def test_confident_family_is_not_gated(self):
+        v = clf.verdict_from(answers(0.95, {"kyc": 0.8, "bank": 0.15, "courier": 0.05}, {3: 1.0}))
+        assert not v.needs_review and v.kind_confidence == pytest.approx(0.7, abs=0.01)
 
     def test_disagreement_is_gated(self):
         v = clf.verdict_from(answers(0.1, {"lottery": 0.7, "not_scam": 0.3}, {1: 1.0}))

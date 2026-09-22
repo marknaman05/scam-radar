@@ -71,10 +71,18 @@ QUESTIONS = {
     "creativity": Score(instructions="As a scam, how creative or novel is this message?", criteria=CREATIVITY),
 }
 
-#: A verdict is confident when the scam probability is this far from 0.5 ...
+#: A verdict is certain when the scam probability is this far from 0.5 ...
 SCAM_MARGIN = 0.25
-#: ... and the top family beats the runner-up by at least this much.
-KIND_MARGIN = 0.25
+#: ... and the family answer's *confidence* -- TypeSafe's own statistic for
+#: how concentrated the choice distribution is (1.0 = all on one label,
+#: lower as it spreads) -- clears their "don't guess" line.  Their guidance:
+#: below 0.5 the model is genuinely unsure; 0.5-0.9 proceed with care; above
+#: 0.9 act automatically.  Choice and Score answers carry it; Noul does not,
+#: which is why the scam question is gated on its probability instead.
+KIND_CONFIDENCE = 0.5
+#: Danger is used only for display, so a spread-out danger distribution is
+#: reported rather than gated; below this the level is shown as a range.
+DANGER_CONFIDENCE = 0.5
 
 
 @dataclass
@@ -92,6 +100,9 @@ class Verdict:
     review_reason: str
     model: str = ""
     kinds: dict[str, float] = field(default_factory=dict)
+    kind_confidence: float = 1.0
+    danger_confidence: float = 1.0
+    creativity_confidence: float = 1.0
 
     def as_dict(self) -> dict:
         return {
@@ -102,6 +113,8 @@ class Verdict:
             "creativity": self.creativity,
             "needs_review": self.needs_review, "review_reason": self.review_reason,
             "kinds": {k: round(v, 3) for k, v in self.kinds.items()}, "model": self.model,
+            "kind_confidence": round(self.kind_confidence, 3), "danger_confidence": round(self.danger_confidence, 3),
+            "creativity_confidence": round(self.creativity_confidence, 3),
         }
 
 
@@ -193,12 +206,14 @@ def verdict_from(answers: dict, *, model: str = "") -> Verdict:
     danger = max(danger_probs, key=danger_probs.get)
     creativity = int(round(float(answers["creativity"].score)))
     is_scam = p_scam >= 0.5
+    conf = lambda name: float(getattr(answers[name], "confidence", 1.0))
+    kind_conf, danger_conf, cre_conf = conf("kind"), conf("danger"), conf("creativity")
 
     reasons = []
     if abs(p_scam - 0.5) < SCAM_MARGIN:
         reasons.append(f"scam probability {p_scam:.0%} is too close to even")
-    if p_kind - p_runner < KIND_MARGIN and is_scam:
-        reasons.append(f"'{kind}' ({p_kind:.0%}) barely beats '{runner}' ({p_runner:.0%})")
+    if is_scam and kind_conf < KIND_CONFIDENCE:
+        reasons.append(f"family unclear: confidence {kind_conf:.2f} ('{kind}' {p_kind:.0%} vs '{runner}' {p_runner:.0%})")
     # A confident not-scam verdict should still get eyes when the family
     # question thinks otherwise -- the two questions disagreeing is a signal.
     if not is_scam and kind != "not_scam" and p_kind > 0.5:
@@ -209,4 +224,5 @@ def verdict_from(answers: dict, *, model: str = "") -> Verdict:
         p_kind=p_kind, kind_runner_up=runner, p_runner_up=p_runner,
         danger=danger, danger_probabilities=danger_probs, creativity=creativity,
         needs_review=bool(reasons), review_reason="; ".join(reasons), model=model, kinds=kinds,
+        kind_confidence=kind_conf, danger_confidence=danger_conf, creativity_confidence=cre_conf,
     )

@@ -79,7 +79,7 @@
       <div class="grid">
         <div><div class="k">Scam probability</div><div class="big" id="vP"></div><div class="bar"><i id="vPBar"></i></div></div>
         <div><div class="k">Danger</div><div class="big" id="vDanger"></div><div class="danger" id="vDangerBar"></div><div class="fine" id="vDangerText"></div></div>
-        <div><div class="k">Family (with probabilities)</div><div class="kinds" id="vKinds"></div></div>
+        <div><div class="k">Family · confidence <span id="vKindConf"></span></div><div class="kinds" id="vKinds"></div></div>
         <div><div class="k">Creativity</div><div class="big" id="vCre"></div><div class="fine" id="vCreText"></div><button class="vote" id="vVote" style="margin-top:8px">▲ upvote for the leaderboard</button></div>
       </div>
       <div class="why" id="vWhy" hidden></div>
@@ -130,7 +130,7 @@
         <p class="msg">Because the answers are probabilities, the verdict can know when it's guessing. It's marked <b>needs a human look</b> when any of these hold:</p>
         <ul class="msg" style="margin:6px 0 0 18px">
           <li>the scam probability is within 0.25 of even (between 25% and 75%);</li>
-          <li>the top family beats the runner-up by less than 0.25;</li>
+          <li>the family answer's <b>confidence</b> is under 0.5 — TypeSafe's own statistic for how concentrated the choice is (1.0 = all on one label; their guidance: below 0.5 "the model is genuinely unsure, don't guess");</li>
           <li>the two questions disagree — "not a scam" overall, yet a scam family scores over 50%.</li>
         </ul>
         <p class="msg">Everything else is shown as a straight verdict. The thresholds are two numbers in the code; on a test set the gate flagged a genuine OTP (39% — the classic phishing shape, even when real) and a plausible-looking challan notice (29%), and nothing else.</p>
@@ -199,6 +199,7 @@ function showVerdict(rep) {
   $("vDangerBar").innerHTML = [0,1,2,3,4].map(i => `<i class="${i <= v.danger ? "on" : ""} ${v.danger === 0 ? "none" : v.danger <= 1 ? "low" : ""}"></i>`).join("");
   const ranked = Object.entries(v.kinds).sort((a, b) => b[1] - a[1]).slice(0, 5);
   $("vKinds").innerHTML = ranked.map(([k, p]) => `<div><span>${KIND_LABEL[k] || k}</span><b>${pct(p)}</b></div>`).join("");
+  $("vKindConf").textContent = v.kind_confidence != null ? v.kind_confidence.toFixed(2) : "";
   $("vCre").textContent = `${v.creativity} / 4`; $("vCreText").textContent = CRE[v.creativity];
   $("vWhy").hidden = !v.needs_review; $("vWhy").textContent = v.needs_review ? "Queued for review: " + v.review_reason + "." : "";
   $("vVote").disabled = false; $("vVote").textContent = "▲ upvote for the leaderboard";
