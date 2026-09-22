@@ -105,19 +105,67 @@ class Verdict:
         }
 
 
-#: Jev is served by TypeSafe directly and, under the same wire format, by
-#: OpenRouter (model ``typesafe/jev-1.13``, POST /api/v1/systemone).  An
-#: OpenRouter key is enough; a TypeSafe key is used if that is what is set.
+#: Jev is served by three gateways.  The same questions go to each; the
+#: first configured key wins:
+#:   AI_GATEWAY_API_KEY  Vercel AI Gateway, POST /v1/evaluate (model typesafe-ai/jev;
+#:                       same shape except the yes/no question is called "boolean")
+#:   OPENROUTER_API_KEY  OpenRouter, POST /api/v1/systemone (model typesafe/jev-1.13)
+#:   TYPESAFE_API_KEY    TypeSafe directly
+VERCEL_URL = "https://ai-gateway.vercel.sh/v1/evaluate"
+VERCEL_MODEL = "typesafe-ai/jev"
 OPENROUTER_BASE = "https://openrouter.ai/api"
 OPENROUTER_MODEL = "typesafe/jev-1.13"
 
 
-def _client() -> TypeSafeClient:
+class _Answer:
+    """Duck-typed answer for the Vercel path, matching the SDK's attributes."""
+
+    def __init__(self, raw: dict) -> None:
+        self.__dict__.update(raw)
+
+
+class _Response:
+    def __init__(self, body: dict) -> None:
+        self.model = body.get("model", VERCEL_MODEL)
+        self.answers = {name: _Answer(a) for name, a in body["answers"].items()}
+
+
+class VercelJev:
+    """The Vercel AI Gateway route, without the SDK (it hard-codes TypeSafe's path)."""
+
+    def __init__(self, api_key: str, model: str = VERCEL_MODEL) -> None:
+        self.api_key, self.model = api_key, model
+
+    def system_one(self, state, questions) -> _Response:
+        import json
+        import urllib.request
+
+        qs = {}
+        for name, q in questions.items():
+            d = q.model_dump(exclude_none=True)
+            if d["type"] == "noul":
+                d["type"] = "boolean"
+            qs[name] = d
+        req = urllib.request.Request(
+            VERCEL_URL, method="POST", data=json.dumps({"model": self.model, "state": state, "questions": qs}).encode(),
+            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = json.load(r)
+        for a in body.get("answers", {}).values():        # "boolean" answers back to the SDK's field name
+            if a.get("type") == "boolean" and "noul" not in a:
+                a["noul"] = a.get("boolean", a.get("probability", a.get("value")))
+        return _Response(body)
+
+
+def _client():
+    if key := os.environ.get("AI_GATEWAY_API_KEY"):
+        return VercelJev(key, os.environ.get("JEV_MODEL") or VERCEL_MODEL)
     if key := os.environ.get("OPENROUTER_API_KEY"):
         return TypeSafeClient(api_key=key, base_url=OPENROUTER_BASE, model=os.environ.get("JEV_MODEL") or OPENROUTER_MODEL)
     if key := os.environ.get("TYPESAFE_API_KEY"):
         return TypeSafeClient(api_key=key)
-    raise RuntimeError("set OPENROUTER_API_KEY (model typesafe/jev-1.13) or TYPESAFE_API_KEY")
+    raise RuntimeError("set AI_GATEWAY_API_KEY (Vercel), OPENROUTER_API_KEY, or TYPESAFE_API_KEY")
 
 
 def state_for(text: str, sender: str | None = None) -> dict:
@@ -129,7 +177,7 @@ def state_for(text: str, sender: str | None = None) -> dict:
     return state
 
 
-def classify(text: str, sender: str | None = None, *, client: TypeSafeClient | None = None) -> Verdict:
+def classify(text: str, sender: str | None = None, *, client=None) -> Verdict:
     response = (client or _client()).system_one(state_for(text, sender), QUESTIONS)
     return verdict_from(response.answers, model=response.model)
 

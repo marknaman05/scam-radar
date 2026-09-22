@@ -109,5 +109,5 @@ class TestApp:
         assert client.post("/reports/999/rule", json={"is_scam": True, "kind": "nope"}).status_code == 400
 
     def test_model_unconfigured_is_503(self, client, monkeypatch):
-        monkeypatch.delenv("TYPESAFE_API_KEY", raising=False); monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("TYPESAFE_API_KEY", raising=False); monkeypatch.delenv("OPENROUTER_API_KEY", raising=False); monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
         assert client.post("/check", json={"text": "your KYC is pending click here"}).status_code == 503
