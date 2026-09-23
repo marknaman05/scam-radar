@@ -52,11 +52,27 @@ def fingerprint(text: str) -> str:
 
 
 class Store:
+    #: Columns added after the first release.  The full verdict is always in
+    #: verdict_json; these exist so the leaderboard and stats can sort and
+    #: group without parsing every row.
+    LATER = {
+        "content": "TEXT NOT NULL DEFAULT 'scam'",
+        "is_misleading": "INTEGER NOT NULL DEFAULT 0",
+        "claim_kind": "TEXT NOT NULL DEFAULT 'no_claim'",
+        "harm": "INTEGER NOT NULL DEFAULT 0",
+        "virality": "INTEGER NOT NULL DEFAULT 0",
+        "human_claim_kind": "TEXT",
+    }
+
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._db() as db:
             db.executescript(SCHEMA)
+            have = {row["name"] for row in db.execute("PRAGMA table_info(reports)")}
+            for column, decl in self.LATER.items():
+                if column not in have:
+                    db.execute(f"ALTER TABLE reports ADD COLUMN {column} {decl}")
 
     def _db(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path)
@@ -69,11 +85,14 @@ class Store:
         with self._db() as db:
             cur = db.execute(
                 """INSERT INTO reports (fingerprint, text, sender, received, is_scam, p_scam, kind, p_kind, danger,
-                                        creativity, needs_review, review_reason, verdict_json)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                        creativity, needs_review, review_reason, verdict_json,
+                                        content, is_misleading, claim_kind, harm, virality)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (fp, text, sender, now, int(verdict["is_scam"]), verdict["p_scam"], verdict["kind"], verdict["p_kind"],
                  verdict["danger"], verdict["creativity"], int(verdict["needs_review"]), verdict["review_reason"],
-                 json.dumps(verdict)),
+                 json.dumps(verdict),
+                 verdict.get("content", "scam"), int(verdict.get("is_misleading", False)),
+                 verdict.get("claim_kind", "no_claim"), verdict.get("harm", 0), verdict.get("virality", 0)),
             )
             row = db.execute("SELECT * FROM reports WHERE id = ?", (cur.lastrowid,)).fetchone()
             seen = db.execute("SELECT COUNT(*) FROM reports WHERE fingerprint = ?", (fp,)).fetchone()[0]
@@ -93,11 +112,11 @@ class Store:
             ).fetchall()
         return [self._public(r) for r in rows]
 
-    def rule(self, report_id: int, is_scam: bool, kind: str) -> dict | None:
+    def rule(self, report_id: int, is_scam: bool, kind: str, claim_kind: str | None = None) -> dict | None:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         with self._db() as db:
-            db.execute("UPDATE reports SET human_is_scam = ?, human_kind = ?, reviewed = ? WHERE id = ?",
-                       (int(is_scam), kind, now, report_id))
+            db.execute("UPDATE reports SET human_is_scam = ?, human_kind = ?, human_claim_kind = ?, reviewed = ? WHERE id = ?",
+                       (int(is_scam), kind, claim_kind, now, report_id))
         return self.get(report_id)
 
     def vote(self, report_id: int) -> dict | None:
@@ -136,9 +155,17 @@ class Store:
             kinds = db.execute(
                 "SELECT COALESCE(human_kind, kind) AS k, COUNT(*) AS n FROM reports WHERE COALESCE(human_is_scam, is_scam) = 1 GROUP BY k ORDER BY n DESC"
             ).fetchall()
+        with self._db() as db:
+            misleading = db.execute("SELECT COUNT(*) FROM reports WHERE is_misleading = 1").fetchone()[0]
+            claim_kinds = db.execute(
+                "SELECT COALESCE(human_claim_kind, claim_kind) AS k, COUNT(*) AS n FROM reports "
+                "WHERE is_misleading = 1 GROUP BY k ORDER BY n DESC"
+            ).fetchall()
         return {
-            "total": total or 0, "scams": scams or 0, "awaiting_review": review or 0, "reviewed": reviewed or 0,
+            "total": total or 0, "scams": scams or 0, "misleading": misleading or 0,
+            "awaiting_review": review or 0, "reviewed": reviewed or 0,
             "model_agreed_with_human": agreed or 0, "by_kind": {r["k"]: r["n"] for r in kinds},
+            "by_claim": {r["k"]: r["n"] for r in claim_kinds},
         }
 
     @staticmethod
@@ -149,6 +176,13 @@ class Store:
             d[key] = bool(d[key])
         if d["human_is_scam"] is not None:
             d["human_is_scam"] = bool(d["human_is_scam"])
+        d["is_misleading"] = bool(d.get("is_misleading"))
         d["final_is_scam"] = d["human_is_scam"] if d["human_is_scam"] is not None else d["is_scam"]
         d["final_kind"] = d["human_kind"] or d["kind"]
+        d["final_claim_kind"] = d.get("human_claim_kind") or d.get("claim_kind") or "no_claim"
+        # What the card should lead with, once a human has had their say.
+        d["headline"] = ("scam, and it lies to sell the bait" if d["final_is_scam"] and d["is_misleading"]
+                         else "scam" if d["final_is_scam"]
+                         else "false or misleading claim" if d["is_misleading"]
+                         else "looks genuine")
         return d

@@ -1,13 +1,22 @@
 # Scam SMS Radar
 
-Paste the "Dear customer, your electricity will be disconnected tonight" or
-"KYC pending, click here" message. You get:
+Paste — or share straight from WhatsApp — the "Dear customer, your
+electricity will be disconnected tonight" SMS, or the forward claiming that
+lemon water cures cancer. You get:
 
 - **is it a scam** — as a calibrated probability, not just a label;
 - **which family** — KYC, electricity, courier, lottery, fake job, bank/UPI,
   loan, impersonation, other, or genuine — with the probability of each;
 - **danger** 0–4, how much harm following it would do;
-- **creativity** 0–4, feeding a leaderboard of the most inventive cons.
+- **creativity** 0–4, feeding a leaderboard of the most inventive cons;
+- and for a forward rather than a scam: whether it is **misleading**, which
+  kind of claim (health myth, communal hoax, political, money rumour,
+  recycled media, doctored media, chain forward, false alarm), how much
+  **harm** believing it would do, and how hard it pushes you to forward it.
+
+An SMS is usually a scam and a WhatsApp forward is usually a false claim, so
+a router question decides which half the verdict is about — and the gate
+follows it, rather than judging a health myth for being a poor scam.
 
 And a **confidence gate**: when the scam probability is near even, or two
 families are too close to call, the verdict is queued for a human. Rulings
@@ -36,5 +45,10 @@ Open http://localhost:8000. Tests: `uv run pytest` (the model is faked; no key n
 - `radar/store.py` — SQLite: reports, human rulings, votes, leaderboard, stats.
 - `radar/app.py` — FastAPI routes; `radar/static/index.html` — the page.
 
-Android tip: install the page as a web app and share a message to it — the
-`?text=` query parameter prefills the box.
+## On a phone
+
+It is a PWA with a **share target**: install it (button on the Check tab, or
+Share → Add to Home Screen on iPhone), then long-press any message in
+WhatsApp or Messages → Share → Scam Radar. Android hands the text to
+`/share?text=…`, the page fills the box and checks it immediately. The app
+never reads your messages; you hand it one at a time.

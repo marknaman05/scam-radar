@@ -3,14 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scam SMS Radar</title>
-<meta name="description" content="Paste a suspicious SMS. Get the scam type, a danger score, and an honest confidence — uncertain ones go to a human.">
+<title>Scam SMS Radar — check an SMS or a WhatsApp forward</title>
+<meta name="description" content="Paste or share a suspicious SMS or WhatsApp forward. Get the scam type or the false-claim type, how much harm it does, and an honest confidence — uncertain ones go to a human.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#171717">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scam Radar">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
 <style>
   :root { --paper:#fff; --tint:#fafafa; --border:#e5e5e5; --faint:#a3a3a3; --muted:#737373; --body:#404040; --ink:#171717;
           --ok:#10b981; --warn:#f59e0b; --bad:#e11d48; --sans:"Geist",ui-sans-serif,system-ui,sans-serif; --serif:"Instrument Serif",ui-serif,Georgia,serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace; }
-  * { box-sizing:border-box } body { margin:0; padding:0 20px 64px; background:var(--tint); color:var(--ink); font:15px/1.6 var(--sans); letter-spacing:-.01em; -webkit-font-smoothing:antialiased }
+  * { box-sizing:border-box; min-width:0 } body { margin:0; padding:0 20px 64px; background:var(--tint); color:var(--ink); font:15px/1.6 var(--sans); letter-spacing:-.01em; -webkit-font-smoothing:antialiased }
   main { max-width:960px; margin:0 auto }
   header { display:flex; align-items:baseline; justify-content:space-between; padding:26px 0 30px }
   .wordmark { font-family:var(--serif); font-size:26px } .wordmark small { font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin-left:10px }
@@ -23,7 +31,12 @@
   .btn { height:44px; padding:0 22px; border:0; border-radius:8px; background:var(--ink); color:#fff; font:500 15px var(--sans); cursor:pointer } .btn:disabled { opacity:.4 } .btn.ghost { background:none; border:1px solid var(--border); color:var(--ink) }
   .fine { font-size:12px; color:var(--muted); margin-top:10px }
   /* verdict */
-  #verdict { margin-top:18px; display:none } #verdict.on { display:block }
+  #verdict { margin-top:18px; display:none } #verdict.on { display:flex; flex-direction:column }
+  #verdict .v-head { order:-2 } #verdict .why { order:10 }
+  /* A false claim leads with the claim; the scam numbers follow as context. */
+  #verdict.claim-led .claimgrid { order:-1; border-top:0; padding-top:0; margin-top:0 }
+  #verdict.claim-led .grid { border-top:1px solid var(--border); padding-top:16px; margin-top:16px }
+  #verdict.claim-led .grid::before { content:"Scam checks, for context"; grid-column:1/-1; font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint) }
   .v-head { display:flex; flex-wrap:wrap; align-items:center; gap:14px 22px; padding-bottom:16px; border-bottom:1px solid var(--border); margin-bottom:16px }
   .badge { font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase; padding:6px 12px; border-radius:999px; border:1px solid }
   .badge.scam { color:var(--bad); border-color:#fecdd3; background:#fff1f2 } .badge.ok { color:#047857; border-color:#a7f3d0; background:#ecfdf5 } .badge.review { color:#b45309; border-color:#fde68a; background:#fffbeb }
@@ -58,7 +71,34 @@
   .pg-panel textarea { display:block; width:100%; margin:0; border:0; background:var(--paper); color:var(--body); font:12.5px/1.6 var(--mono); padding:16px; white-space:pre; overflow:auto; resize:none; cursor:not-allowed; min-height:420px }
   .pg-panel textarea:focus { outline:none }
   .pg-badge { display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--muted); background:var(--tint); border:1px solid var(--border); border-radius:999px; padding:4px 10px }
-  @media (max-width:640px) { header { flex-direction:column; gap:10px } nav a { margin:0 14px 0 0 } }
+  /* ── claim (misinformation) half ── */
+  .badge.claim { color:#7c2d12; border-color:#fed7aa; background:#fff7ed }
+  .claimgrid { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); margin-top:16px; padding-top:16px; border-top:1px solid var(--border) }
+  .meter { display:flex; gap:4px; margin-top:6px } .meter i { flex:1; height:10px; border-radius:3px; background:#f0f0f0 } .meter i.on { background:#ea580c } .meter i.on.low { background:var(--warn) } .meter i.on.none { background:var(--ok) }
+  /* ── phone ── */
+  @media (max-width:760px) {
+    body { padding:0 14px calc(28px + env(safe-area-inset-bottom)) }
+    header { flex-direction:column; align-items:flex-start; gap:12px; padding:18px 0 16px; position:sticky; top:0; background:var(--tint); z-index:20; margin:0 -14px; padding-left:14px; padding-right:14px; border-bottom:1px solid var(--border) }
+    nav { display:flex; overflow-x:auto; gap:6px; width:100%; padding:0 0 2px; -webkit-overflow-scrolling:touch; scrollbar-width:none } nav::-webkit-scrollbar { display:none }
+    nav a { margin:0; flex:0 0 auto; padding:7px 13px; border:1px solid var(--border); border-radius:999px; background:var(--paper); font-size:13px; white-space:nowrap }
+    nav a.on { background:var(--ink); color:#fff; border-color:var(--ink) }
+    h1 { font-size:30px; margin-bottom:10px } .lede { font-size:15px; margin-bottom:20px }
+    .card { padding:16px; border-radius:14px }
+    textarea { min-height:150px; font-size:16px }           /* 16px: iOS will not zoom on focus */
+    .row { flex-direction:column; gap:8px } .row input, .btn { width:100%; height:48px; font-size:16px }
+    .big { font-size:28px } .v-head { gap:10px 14px }
+    .grid, .claimgrid { grid-template-columns:1fr; gap:16px }
+    .stats { grid-template-columns:1fr 1fr } .stats .n { font-size:24px }
+    .item { padding:14px } .item .msg { font-size:15px }
+    .pg-panel textarea { min-height:260px; font-size:12px }
+    footer { flex-direction:column; gap:6px; font-size:12px }
+    .jev { margin-left:0 }
+  }
+  /* Room for the sticky action bar on a phone. */
+  @media (max-width:760px) { #check form { padding-bottom:16px } }
+  #install { display:none; margin-top:14px; width:100%; height:46px; border:1px solid var(--ink); border-radius:10px; background:var(--paper); font:500 15px var(--sans); cursor:pointer }
+  #install.on { display:block }
+  .sharehint { margin-top:10px; font-size:12.5px; color:var(--muted); line-height:1.5 }
 </style>
 </head>
 <body>
@@ -69,8 +109,8 @@
   </header>
 
   <section id="check">
-    <h1>Paste the message.<br><em>Get a straight answer.</em></h1>
-    <p class="lede">"Your electricity will be disconnected tonight." "KYC pending, click here." Paste it as-is. You get the scam type, how dangerous it is, and — unusually — how sure the model is. When it isn't sure, a human looks. Powered by <a href="#how" style="color:inherit">Jev</a>, a model that answers questions instead of writing.</p>
+    <h1>Paste it in.<br><em>Get a straight answer.</em></h1>
+    <p class="lede">A suspicious SMS — "your electricity will be disconnected tonight", "KYC pending, click here" — or a WhatsApp forward that smells wrong. Paste it as-is. You get the scam type <em>or</em> the false-claim type, how much harm it does, and — unusually — how sure the model is. When it isn't sure, a human looks. Powered by <a href="#how" style="color:inherit">Jev</a>, a model that answers questions instead of writing.</p>
     <form class="card" id="form">
       <textarea id="text" placeholder="Dear customer, your electricity power will be disconnected tonight at 9:30 pm from electricity office because your previous month bill was not updated. Please immediately contact our electricity officer 98xxxxxxxx." required minlength="8" maxlength="2000"></textarea>
       <div class="row">
@@ -78,6 +118,8 @@
         <button class="btn" id="go">Check this message</button>
       </div>
       <p class="fine">Don't paste OTPs you actually need. Messages are stored to build the leaderboard and the review set; phone numbers in them are fine, that's the evidence.</p>
+      <button type="button" id="install">&#11015;&#65039;&nbsp; Install on this phone</button>
+      <p class="sharehint" id="sharehint" hidden>Installed? In WhatsApp or Messages, long-press a message &rarr; <b>Share</b> &rarr; <b>Scam Radar</b>, and it lands here already filled in.</p>
     </form>
 
     <div id="verdict" class="card">
@@ -92,6 +134,12 @@
         <div><div class="k">Danger</div><div class="big" id="vDanger"></div><div class="danger" id="vDangerBar"></div><div class="fine" id="vDangerText"></div></div>
         <div><div class="k">Family · confidence <span id="vKindConf"></span></div><div class="kinds" id="vKinds"></div></div>
         <div><div class="k">Creativity</div><div class="big" id="vCre"></div><div class="fine" id="vCreText"></div><button class="vote" id="vVote" style="margin-top:8px">▲ upvote for the leaderboard</button></div>
+      </div>
+      <div class="claimgrid" id="vClaimWrap" hidden>
+        <div><div class="k">Claim</div><div class="big" id="vClaim"></div><div class="fine" id="vClaimText"></div></div>
+        <div><div class="k">Misleading probability</div><div class="big" id="vPMis"></div><div class="bar"><i id="vPMisBar"></i></div></div>
+        <div><div class="k">Harm if believed</div><div class="big" id="vHarm"></div><div class="meter" id="vHarmBar"></div><div class="fine" id="vHarmText"></div></div>
+        <div><div class="k">Forward pressure</div><div class="big" id="vViral"></div><div class="meter" id="vViralBar"></div><div class="fine" id="vViralText"></div></div>
       </div>
       <div class="why" id="vWhy" hidden></div>
     </div>
@@ -127,12 +175,16 @@
       </div>
       <div class="item">
         <div class="k">2 · Four typed questions, one request</div>
-        <p class="msg">The state goes to <b>Jev</b>, TypeSafe's "System One" model, reached through OpenRouter. Jev doesn't write; it answers questions of three fixed kinds, all in parallel, with calibrated probabilities:</p>
+        <p class="msg">The state goes to <b>Jev</b>, TypeSafe's "System One" model, reached through OpenRouter. Jev doesn't write; it answers questions of three fixed kinds, all in parallel, with calibrated probabilities. An SMS is usually a scam and a WhatsApp forward is usually a false claim, so both sets are asked at once and a router question decides which half the verdict is about:</p>
         <ul class="msg" style="margin:6px 0 0 18px">
           <li><b>Is it a scam?</b> — a yes/no question. Comes back as a probability, e.g. 0.86.</li>
           <li><b>Which family?</b> — a <i>choice</i> over ten labels (KYC, electricity, courier, lottery, fake job, bank/UPI, loan, impersonation, other scam, genuine), each described in a sentence. Comes back as a probability for every label.</li>
           <li><b>How dangerous?</b> — a <i>score</i> 0–4 against a written rubric, from "harmless" to "impersonates authority with threats to extract money". Comes back as a probability per level.</li>
           <li><b>How creative?</b> — a <i>score</i> 0–4, from "the template everyone has seen" to "would surprise a seasoned skeptic". Feeds the leaderboard.</li>
+          <li><b>What kind of message is this?</b> — the router: scam, misinformation, both, or harmless.</li>
+          <li><b>Is it misleading?</b> — yes/no, for claims about the world that are false, unverifiable or lifted out of their real context.</li>
+          <li><b>Which kind of claim?</b> — a <i>choice</i> over ten: health myth, communal hoax, political, money rumour, recycled old media, doctored/AI media, chain forward, false alarm, other, none.</li>
+          <li><b>How much harm, and how hard does it push you to forward it?</b> — two more scores, the second reading the "send to 10 people or else" machinery directly.</li>
         </ul>
         <p class="msg">The questions and rubrics are plain text in the code — that's the whole "prompt". The call takes about a quarter of a second and costs around ₹0.002.</p>
       </div>
@@ -144,7 +196,7 @@
           <li>the family answer's <b>confidence</b> is under 0.5 — TypeSafe's own statistic for how concentrated the choice is (1.0 = all on one label; their guidance: below 0.5 "the model is genuinely unsure, don't guess");</li>
           <li>the two questions disagree — "not a scam" overall, yet a scam family scores over 50%.</li>
         </ul>
-        <p class="msg">Everything else is shown as a straight verdict. The thresholds are two numbers in the code; on a test set the gate flagged a genuine OTP (39% — the classic phishing shape, even when real) and a plausible-looking challan notice (29%), and nothing else.</p>
+        <p class="msg">The gate follows the router: a WhatsApp health myth is not second-guessed for being a poor scam, and an electricity SMS is not quizzed on its factual accuracy. When the router itself is unsure which kind of message it is, both halves are judged — that uncertainty is exactly when a person should look. The thresholds are a handful of named numbers in the code.</p>
       </div>
       <div class="item">
         <div class="k">4 · A human rules; both answers are kept</div>
@@ -153,6 +205,10 @@
       <div class="item">
         <div class="k">5 · The leaderboard</div>
         <p class="msg">Only confirmed scams qualify: ruled a scam by a human, or called a scam by the model without a review flag. Ranked by the creativity score, then upvotes, then recency. Messages are fingerprinted with numbers and links stripped, so "seen 3× before" recognises a campaign even when every copy has a different phone number.</p>
+      </div>
+      <div class="item">
+        <div class="k">On your phone</div>
+        <p class="msg">Install it (the button on the Check tab, or <b>Share &rarr; Add to Home Screen</b> on iPhone) and Android registers it as a <b>share target</b>. After that, long-press any message in WhatsApp or your SMS app &rarr; <b>Share</b> &rarr; <b>Scam Radar</b>, and it opens with the text already in and the check already running. No copy-paste, no app store, no permissions — the page never reads your messages, you hand it one at a time.</p>
       </div>
       <div class="item">
         <div class="k">What's stored, and what isn't</div>
@@ -333,6 +389,10 @@
 const $ = id => document.getElementById(id);
 const KIND_LABEL = { kyc:"KYC / account block", electricity:"Electricity disconnection", courier:"Courier / customs", lottery:"Lottery / prize", job:"Fake job / task", bank:"Bank / UPI fraud", loan:"Loan / investment", impersonation:"Impersonation", other_scam:"Other scam", not_scam:"Not a scam" };
 const DANGER = ["harmless","nuisance","risky","dangerous","severe"], CRE = ["template","minor twist","some craft","inventive","genuinely creative"];
+const CLAIM_LABEL = { health:"Health myth", communal:"Communal hoax", political:"Political misinfo", money:"Money rumour", recycled:"Recycled old media", doctored:"Doctored / AI media", chain:"Chain forward", alarm:"False alarm", other_claim:"Other false claim", no_claim:"No claim" };
+const HARM = ["none","wastes time","misleads","harmful","dangerous"], VIRAL = ["no push","mild","pushy","engineered"];
+const CONTENT_LABEL = { scam:"Scam", misinformation:"Misinformation", both:"Scam + false claim", harmless:"Harmless" };
+let CLAIM_KINDS = Object.keys(CLAIM_LABEL);
 const pct = p => Math.round(p * 100) + "%";
 const esc = s => String(s).replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
 let KINDS = Object.keys(KIND_LABEL), REVIEW_PROTECTED = false;
@@ -348,9 +408,49 @@ function tab(name) {
 window.addEventListener("hashchange", () => tab(location.hash.slice(1) || "check"));
 tab(location.hash.slice(1) || "check");
 
-// Android/desktop share target: ?text=... prefills the box.
-const shared = new URLSearchParams(location.search).get("text");
-if (shared) { $("text").value = shared; tab("check"); }
+// ── share target ──────────────────────────────────────────────────────
+// Android hands a shared message over as ?text= (and sometimes ?title= and
+// ?url= separately, which WhatsApp and some SMS apps split awkwardly), so
+// all three are stitched back together.  See share_target in the manifest.
+(function () {
+  const q = new URLSearchParams(location.search);
+  const parts = [q.get("title"), q.get("text"), q.get("url")].filter(Boolean);
+  if (!parts.length) return;
+  // A URL already quoted inside the text should not be repeated after it.
+  const shared = parts.filter((p, i) => i === 0 || !parts[0].includes(p)).join("\n").trim();
+  if (!shared) return;
+  $("text").value = shared.slice(0, 2000);
+  tab("check");
+  history.replaceState(null, "", location.pathname === "/share" ? "/#check" : location.pathname + "#check");
+  // Check it straight away: someone who shared a message wants the answer,
+  // not a form to press again.
+  requestAnimationFrame(() => $("form").requestSubmit());
+})();
+
+// ── installable, which is what makes the share target possible ────────
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+if (standalone) $("sharehint").hidden = false;
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault(); installPrompt = e;
+  if (!standalone) $("install").classList.add("on");
+});
+$("install").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice;
+  installPrompt = null; $("install").classList.remove("on");
+  if (outcome === "accepted") { $("sharehint").hidden = false; toast("Installed. Now share any message into Scam Radar."); }
+});
+window.addEventListener("appinstalled", () => { $("install").classList.remove("on"); $("sharehint").hidden = false; });
+// iOS has no install prompt event; tell those users how, once.
+if (!standalone && /iphone|ipad|ipod/i.test(navigator.userAgent)) {
+  $("sharehint").hidden = false;
+  $("sharehint").innerHTML = "On iPhone: <b>Share</b> &rarr; <b>Add to Home Screen</b> to keep this a tap away. iOS can't yet receive shared text directly, so paste it here.";
+}
 
 $("form").addEventListener("submit", async e => {
   e.preventDefault();
@@ -367,8 +467,10 @@ $("form").addEventListener("submit", async e => {
 function showVerdict(rep) {
   const v = rep.verdict;
   $("verdict").classList.add("on"); $("verdict").dataset.id = rep.id;
-  $("vBadge").className = "badge " + (v.is_scam ? "scam" : "ok"); $("vBadge").textContent = v.is_scam ? "scam" : "looks genuine";
-  $("vKind").textContent = KIND_LABEL[v.kind] || v.kind;
+  const misleadingOnly = !v.is_scam && v.is_misleading;
+  $("vBadge").className = "badge " + (v.is_scam ? "scam" : misleadingOnly ? "claim" : "ok");
+  $("vBadge").textContent = rep.headline || (v.is_scam ? "scam" : "looks genuine");
+  $("vKind").textContent = misleadingOnly ? (CLAIM_LABEL[v.claim_kind] || v.claim_kind) : (KIND_LABEL[v.kind] || v.kind);
   $("vReview").hidden = !v.needs_review;
   $("vSeen").textContent = rep.seen_before ? `seen ${rep.seen_before}× before` : "first time we see this one";
   $("vP").textContent = pct(v.p_scam); $("vPBar").style.width = pct(v.p_scam); $("vPBar").style.background = v.p_scam >= 0.5 ? "var(--bad)" : "var(--ok)";
@@ -378,6 +480,20 @@ function showVerdict(rep) {
   $("vKinds").innerHTML = ranked.map(([k, p]) => `<div><span>${KIND_LABEL[k] || k}</span><b>${pct(p)}</b></div>`).join("");
   $("vKindConf").textContent = v.kind_confidence != null ? v.kind_confidence.toFixed(2) : "";
   $("vCre").textContent = `${v.creativity} / 4`; $("vCreText").textContent = CRE[v.creativity];
+  // The claim half: shown whenever the message carries a doubtful claim, or
+  // the router thinks this is a forward rather than an SMS scam.
+  const hasClaim = v.claims && (v.is_misleading || v.content === "misinformation" || v.content === "both");
+  $("vClaimWrap").hidden = !hasClaim;
+  $("verdict").classList.toggle("claim-led", !!hasClaim && !v.is_scam);
+  if (hasClaim) {
+    $("vClaim").textContent = CLAIM_LABEL[v.claim_kind] || v.claim_kind;
+    $("vClaimText").textContent = `${CONTENT_LABEL[v.content] || v.content} · confidence ${(v.claim_confidence ?? 1).toFixed(2)}`;
+    $("vPMis").textContent = pct(v.p_misleading); $("vPMisBar").style.width = pct(v.p_misleading); $("vPMisBar").style.background = "#ea580c";
+    $("vHarm").textContent = `${v.harm} / 4`; $("vHarmText").textContent = HARM[v.harm];
+    $("vHarmBar").innerHTML = [0,1,2,3,4].map(i => `<i class="${i <= v.harm ? "on" : ""} ${v.harm === 0 ? "none" : v.harm <= 1 ? "low" : ""}"></i>`).join("");
+    $("vViral").textContent = `${v.virality} / 3`; $("vViralText").textContent = VIRAL[v.virality];
+    $("vViralBar").innerHTML = [0,1,2,3].map(i => `<i class="${i <= v.virality ? "on" : ""} ${v.virality === 0 ? "none" : v.virality <= 1 ? "low" : ""}"></i>`).join("");
+  }
   $("vWhy").hidden = !v.needs_review; $("vWhy").textContent = v.needs_review ? "Queued for review: " + v.review_reason + "." : "";
   $("vVote").disabled = false; $("vVote").textContent = "▲ upvote for the leaderboard";
   $("verdict").scrollIntoView({ behavior:"smooth", block:"nearest" });
@@ -387,17 +503,21 @@ $("vVote").addEventListener("click", async () => { const id = $("verdict").datas
 async function loadStats() {
   const s = await fetch("/stats").then(r => r.json());
   KINDS = s.kinds; REVIEW_PROTECTED = s.review_protected;
-  $("stats").innerHTML = [["messages", s.total], ["scams", s.scams], ["awaiting review", s.awaiting_review], ["reviewed", s.reviewed],
-    ["model agreed", s.reviewed ? Math.round(100 * s.model_agreed_with_human / s.reviewed) + "%" : "—"]]
+  CLAIM_KINDS = s.claim_kinds || CLAIM_KINDS;
+  $("stats").innerHTML = [["messages", s.total], ["scams", s.scams], ["false claims", s.misleading || 0], ["awaiting review", s.awaiting_review],
+    ["reviewed", s.reviewed]]
     .map(([k, n]) => `<div><div class="k">${k}</div><div class="n">${n}</div></div>`).join("");
 }
 loadStats();
 
 function itemHTML(r, rank) {
   const v = r.verdict, kind = KIND_LABEL[r.final_kind] || r.final_kind;
+  const badge = r.final_is_scam ? "scam" : r.is_misleading ? "claim" : "ok";
+  const label = r.headline || (r.final_is_scam ? "scam" : "genuine");
+  const what = r.final_is_scam ? kind : r.is_misleading ? (CLAIM_LABEL[r.final_claim_kind] || r.final_claim_kind) : kind;
   return `<div class="item" data-id="${r.id}">
-    <div class="meta">${rank ? `<span class="rank">#${rank}</span>` : ""}<span class="badge ${r.final_is_scam ? "scam" : "ok"}">${r.final_is_scam ? "scam" : "genuine"}</span>
-      <span>${esc(kind)}</span><span>danger ${r.danger}/4</span><span>creativity ${r.creativity}/4</span><span>p ${pct(r.p_scam)}</span>
+    <div class="meta">${rank ? `<span class="rank">#${rank}</span>` : ""}<span class="badge ${badge}">${esc(label)}</span>
+      <span>${esc(what)}</span>${r.is_misleading ? `<span>harm ${r.harm}/4</span>` : `<span>danger ${r.danger}/4</span><span>creativity ${r.creativity}/4</span>`}<span>p ${pct(r.p_scam)}</span>
       ${r.reviewed ? "<span>✓ human-ruled</span>" : r.needs_review ? "<span>awaiting review</span>" : ""}${r.sender ? `<span>from ${esc(r.sender)}</span>` : ""}<span>${r.received.slice(0, 10)}</span></div>
     <div class="msg">${esc(r.text)}</div>
     <div class="meta"><button class="vote" data-vote="${r.id}">▲ ${r.votes}</button></div></div>`;
@@ -424,6 +544,7 @@ async function loadReview() {
     <div class="why">${esc(x.review_reason)}</div>
     <div class="row" style="align-items:center">
       <select data-kind="${x.id}">${KINDS.map(k => `<option value="${k}" ${k === x.kind ? "selected" : ""}>${KIND_LABEL[k] || k}</option>`).join("")}</select>
+      <select data-claim="${x.id}">${CLAIM_KINDS.map(k => `<option value="${k}" ${k === x.claim_kind ? "selected" : ""}>${CLAIM_LABEL[k] || k}</option>`).join("")}</select>
       <button class="btn" data-rule="${x.id}" data-scam="1">Scam</button>
       <button class="btn ghost" data-rule="${x.id}" data-scam="0">Genuine</button>
     </div></div>`).join("") : `<div class="item">Queue is empty — the model was sure about everything so far.</div>`;
@@ -441,7 +562,8 @@ async function loadReview() {
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-rule]"); if (!b) return;
   const id = b.dataset.rule, kind = document.querySelector(`select[data-kind="${id}"]`).value;
-  const r = await fetch(`/reports/${id}/rule`, { method:"POST", headers:{ "Content-Type":"application/json", ...authHeaders() }, body: JSON.stringify({ is_scam: b.dataset.scam === "1", kind }) });
+  const claim_kind = document.querySelector(`select[data-claim="${id}"]`)?.value || null;
+  const r = await fetch(`/reports/${id}/rule`, { method:"POST", headers:{ "Content-Type":"application/json", ...authHeaders() }, body: JSON.stringify({ is_scam: b.dataset.scam === "1", kind, claim_kind }) });
   if (!r.ok) { toast((await r.json().catch(() => ({}))).detail || "could not save"); return; }
   b.closest(".item").remove(); toast("Ruling saved."); loadStats();
 });

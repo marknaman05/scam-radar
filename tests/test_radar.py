@@ -18,14 +18,31 @@ def confidence(probs):
     return 1.0 if n < 2 else (n * max(probs.values()) - 1) / (n - 1)
 
 
-def answers(p_scam, kinds, danger, creativity=1.0):
-    """Shape the SDK returns: .noul / .probabilities / .score / .confidence."""
-    return {
+def answers(p_scam, kinds, danger, creativity=1.0, *, content=None, p_mis=0.02, claims=None, harm=None, virality=None):
+    """Shape the SDK returns: .noul / .probabilities / .score / .confidence.
+
+    The claim half is optional so the older scam-only cases stay readable;
+    pass `content=` to get a full nine-question answer."""
+    out = {
         "is_scam": SimpleNamespace(noul=p_scam),
         "kind": SimpleNamespace(choice=max(kinds, key=kinds.get), probabilities=kinds, confidence=confidence(kinds)),
         "danger": SimpleNamespace(score=float(max(danger, key=danger.get)), probabilities=danger, confidence=confidence(danger)),
         "creativity": SimpleNamespace(score=creativity, probabilities={}, confidence=1.0),
     }
+    if content is None:
+        return out
+    contents = content if isinstance(content, dict) else {content: 0.95, "harmless": 0.05}
+    claims = claims or {"no_claim": 0.95, "other_claim": 0.05}
+    harm = harm or {0: 1.0}
+    virality = virality or {0: 1.0}
+    out |= {
+        "content": SimpleNamespace(choice=max(contents, key=contents.get), probabilities=contents, confidence=confidence(contents)),
+        "is_misleading": SimpleNamespace(noul=p_mis),
+        "claim_kind": SimpleNamespace(choice=max(claims, key=claims.get), probabilities=claims, confidence=confidence(claims)),
+        "harm": SimpleNamespace(score=float(max(harm, key=harm.get)), probabilities=harm, confidence=confidence(harm)),
+        "virality": SimpleNamespace(score=float(max(virality, key=virality.get)), probabilities=virality, confidence=confidence(virality)),
+    }
+    return out
 
 
 class TestGate:
@@ -123,3 +140,92 @@ class TestApp:
     def test_model_unconfigured_is_503(self, client, monkeypatch):
         monkeypatch.delenv("TYPESAFE_API_KEY", raising=False); monkeypatch.delenv("OPENROUTER_API_KEY", raising=False); monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
         assert client.post("/check", json={"text": "your KYC is pending click here"}).status_code == 503
+
+
+class TestClaimHalf:
+    """A WhatsApp forward is usually not a scam -- it is a false claim."""
+
+    def test_misinformation_is_named_and_scored(self):
+        v = clf.verdict_from(answers(
+            0.12, {"other_scam": 0.4, "not_scam": 0.5, "kyc": 0.1}, {1: 1.0},
+            content="misinformation", p_mis=0.97,
+            claims={"health": 0.9, "other_claim": 0.07, "no_claim": 0.03},
+            harm={3: 0.8, 4: 0.2}, virality={2: 0.9, 3: 0.1}))
+        assert not v.is_scam and v.is_misleading
+        assert v.claim_kind == "health" and v.harm == 3 and v.virality == 2
+        assert v.headline == "false or misleading claim"
+
+    def test_scam_rules_do_not_judge_a_forward(self):
+        # p_scam 0.44 would trip the scam gate, and the family question leans
+        # 'other_scam' -- but the router says this is misinformation, so the
+        # scam half is not what the verdict is about.
+        v = clf.verdict_from(answers(
+            0.44, {"other_scam": 0.6, "not_scam": 0.3, "kyc": 0.1}, {2: 1.0},
+            content="misinformation", p_mis=0.97,
+            claims={"communal": 0.95, "no_claim": 0.05}, harm={4: 1.0}))
+        assert not v.needs_review, v.review_reason
+
+    def test_claim_rules_do_not_judge_an_sms_scam(self):
+        v = clf.verdict_from(answers(
+            0.96, {"electricity": 0.95, "kyc": 0.05}, {4: 1.0},
+            content="scam", p_mis=0.45, claims={"no_claim": 0.5, "other_claim": 0.5}))
+        assert v.is_scam and not v.needs_review, v.review_reason
+
+    def test_an_unsure_router_sends_it_to_a_human(self):
+        v = clf.verdict_from(answers(
+            0.6, {"lottery": 0.9, "not_scam": 0.1}, {2: 1.0},
+            content={"scam": 0.4, "misinformation": 0.35, "harmless": 0.25}, p_mis=0.6))
+        assert v.needs_review and "unclear what kind of message" in v.review_reason
+
+    def test_scam_that_also_lies(self):
+        v = clf.verdict_from(answers(
+            0.97, {"job": 0.95, "not_scam": 0.05}, {3: 1.0},
+            content="both", p_mis=0.93, claims={"money": 0.9, "no_claim": 0.1}, harm={3: 1.0}))
+        assert v.is_scam and v.is_misleading and v.headline == "scam, and it lies to sell the bait"
+
+    def test_older_answers_without_the_claim_half_still_work(self):
+        v = clf.verdict_from(answers(0.97, {"kyc": 0.9, "bank": 0.1}, {4: 1.0}))
+        assert v.is_scam and v.claim_kind == "no_claim" and not v.is_misleading
+
+
+class TestClaimsThroughTheApp:
+    def test_stored_and_ruled(self, client, monkeypatch):
+        monkeypatch.setattr(clf, "classify", lambda text, sender=None, client=None: clf.verdict_from(answers(
+            0.1, {"not_scam": 0.8, "other_scam": 0.2}, {1: 1.0},
+            content="misinformation", p_mis=0.96,
+            claims={"health": 0.92, "no_claim": 0.08}, harm={3: 1.0}, virality={3: 1.0}), model="fake"))
+        rep = client.post("/check", json={"text": "Lemon and ginger in hot water kills cancer cells 100%. Forward to 10 people!"}).json()
+        assert rep["is_misleading"] and rep["claim_kind"] == "health" and rep["harm"] == 3 and rep["virality"] == 3
+        assert rep["headline"] == "false or misleading claim"
+        # a human can correct the claim type as well as the scam family
+        ruled = client.post(f"/reports/{rep['id']}/rule", json={"is_scam": False, "kind": "not_scam", "claim_kind": "other_claim"}).json()
+        assert ruled["final_claim_kind"] == "other_claim"
+        assert client.get("/stats").json()["misleading"] == 1
+
+    def test_bad_claim_kind_is_refused(self, client, monkeypatch):
+        monkeypatch.setattr(clf, "classify", lambda text, sender=None, client=None: clf.verdict_from(answers(0.9, {"kyc": 0.9, "bank": 0.1}, {3: 1.0}), model="fake"))
+        rep = client.post("/check", json={"text": "your KYC is pending click here now"}).json()
+        r = client.post(f"/reports/{rep['id']}/rule", json={"is_scam": True, "kind": "kyc", "claim_kind": "nonsense"})
+        assert r.status_code == 400
+
+
+class TestPhone:
+    """The bits that make it an app on a phone."""
+
+    def test_manifest_declares_a_share_target(self, client):
+        m = client.get("/manifest.json").json()
+        assert m["share_target"]["action"] == "/share"
+        assert m["share_target"]["params"]["text"] == "text"
+        assert m["display"] == "standalone" and m["icons"]
+
+    def test_service_worker_is_served_from_the_root(self, client):
+        r = client.get("/sw.js")
+        assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+        assert r.headers["service-worker-allowed"] == "/"
+
+    def test_share_lands_on_the_app(self, client):
+        r = client.get("/share?text=Your%20KYC%20is%20pending")
+        assert r.status_code == 200 and 'id="text"' in r.text
+
+    def test_review_is_kept_out_of_search_engines(self, client):
+        assert "Disallow: /review" in client.get("/robots.txt").text
