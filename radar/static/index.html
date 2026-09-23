@@ -133,7 +133,8 @@
         <div><div class="k">Scam probability</div><div class="big" id="vP"></div><div class="bar"><i id="vPBar"></i></div></div>
         <div><div class="k">Danger</div><div class="big" id="vDanger"></div><div class="danger" id="vDangerBar"></div><div class="fine" id="vDangerText"></div></div>
         <div><div class="k">Family · confidence <span id="vKindConf"></span></div><div class="kinds" id="vKinds"></div></div>
-        <div><div class="k">Creativity</div><div class="big" id="vCre"></div><div class="fine" id="vCreText"></div><button class="vote" id="vVote" style="margin-top:8px">▲ upvote for the leaderboard</button></div>
+        <div><div class="k">Creativity</div><div class="big" id="vCre"></div><div class="fine" id="vCreText"></div><button class="vote" id="vVote" style="margin-top:8px">▲ upvote for the leaderboard</button>
+        <button class="vote" id="vShare" style="margin-top:8px">↗ share this verdict</button></div>
       </div>
       <div class="claimgrid" id="vClaimWrap" hidden>
         <div><div class="k">Claim</div><div class="big" id="vClaim"></div><div class="fine" id="vClaimText"></div></div>
@@ -464,8 +465,10 @@ $("form").addEventListener("submit", async e => {
   $("go").disabled = false; $("go").textContent = "Check this message";
 });
 
+let LAST_REPORT = null;
 function showVerdict(rep) {
   const v = rep.verdict;
+  LAST_REPORT = rep;
   $("verdict").classList.add("on"); $("verdict").dataset.id = rep.id;
   const misleadingOnly = !v.is_scam && v.is_misleading;
   $("vBadge").className = "badge " + (v.is_scam ? "scam" : misleadingOnly ? "claim" : "ok");
@@ -498,6 +501,25 @@ function showVerdict(rep) {
   $("vVote").disabled = false; $("vVote").textContent = "▲ upvote for the leaderboard";
   $("verdict").scrollIntoView({ behavior:"smooth", block:"nearest" });
 }
+// Send the verdict back to whoever sent you the message.  Native share
+// sheet where there is one (every phone), clipboard everywhere else.
+$("vShare").addEventListener("click", async () => {
+  const rep = LAST_REPORT; if (!rep) return;
+  const v = rep.verdict;
+  const lines = [`🔍 Checked on Scam SMS Radar: ${(rep.headline || "").toUpperCase()}`];
+  if (v.is_scam) lines.push(`Type: ${KIND_LABEL[v.kind] || v.kind} · danger ${v.danger}/4 · ${pct(v.p_scam)} likely a scam`);
+  if (v.is_misleading) lines.push(`Claim: ${CLAIM_LABEL[v.claim_kind] || v.claim_kind} · harm if believed ${v.harm}/4 · ${pct(v.p_misleading)} likely false`);
+  if (!v.is_scam && !v.is_misleading) lines.push("Nothing in it asks for money, credentials or a click, and it makes no false claim.");
+  if (v.needs_review) lines.push("(The model was not confident — a person is reviewing this one.)");
+  lines.push("", "Check anything yourself: https://jev.mynameisnaman.in");
+  const text = lines.join("\n");
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+    await navigator.clipboard.writeText(text);
+    toast("Verdict copied — paste it back into the chat.");
+  } catch (err) { if (err && err.name !== "AbortError") toast("Could not share."); }
+});
+
 $("vVote").addEventListener("click", async () => { const id = $("verdict").dataset.id; await fetch(`/reports/${id}/vote`, { method:"POST" }); $("vVote").disabled = true; $("vVote").textContent = "▲ voted"; });
 
 async function loadStats() {
